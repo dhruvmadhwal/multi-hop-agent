@@ -28,10 +28,14 @@ secrets = get_secret_config()
 # Google API credentials - load from Streamlit secrets
 GOOGLE_API_KEY = secrets.get("google", {}).get("api_key") if secrets else None
 GOOGLE_CREDENTIALS_JSON = secrets.get("google", {}).get("service_account_json") if secrets else None
+GOOGLE_PROJECT_ID = secrets.get("google", {}).get("project_id") if secrets else None
+GOOGLE_LOCATION = secrets.get("google", {}).get("location") if secrets else None
 
 # Set environment variables if credentials are available
 if GOOGLE_API_KEY:
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+if GOOGLE_PROJECT_ID:
+    os.environ["GOOGLE_CLOUD_PROJECT"] = GOOGLE_PROJECT_ID
 
 # LLM configuration - load from Streamlit secrets or use defaults
 LLM_MODEL_NAME = secrets.get("llm", {}).get("model", "gemini-2.5-flash") if secrets else "gemini-2.5-flash"

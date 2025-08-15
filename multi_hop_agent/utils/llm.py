@@ -6,7 +6,7 @@ This module provides functions to interact with the LLM.
 import traceback
 from multi_hop_agent.utils.helpers import extract_after_think
 from langchain_google_vertexai import ChatVertexAI
-from multi_hop_agent.config.settings import LLM_MODEL_NAME
+from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION
 
 def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
     """
@@ -24,9 +24,15 @@ def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
         Exception: If LLM initialization fails
     """
     try:
+        # Check if required Google Cloud settings are available
+        if not GOOGLE_PROJECT_ID:
+            raise Exception("GOOGLE_PROJECT_ID not found in Streamlit secrets")
+        
         # Using Google Vertex AI
         llm = ChatVertexAI(
             model_name=LLM_MODEL_NAME,
+            project=GOOGLE_PROJECT_ID,
+            location=GOOGLE_LOCATION,  # Default location if not specified
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -35,7 +41,7 @@ def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
         return llm
     except Exception as e:
         print(f"Error initializing ChatVertexAI: {e}")
-        print("Please ensure you have authenticated with GCP")
+        print("Please ensure you have provided project_id and location in Streamlit secrets")
         raise
 
 def chat(llm, system: str, user: str, parser=None) -> str:
