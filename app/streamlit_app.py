@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from multi_hop_agent.runner import run_agent_on_prompt
-from multi_hop_agent.config.settings import LLM_MODEL_NAME
+from multi_hop_agent.config.settings import get_llm_config
 
 # Apply nest_asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -54,7 +54,8 @@ top_k = st.sidebar.slider(
 )
 
 st.sidebar.markdown("### Current Settings")
-st.sidebar.info(f"**Model:** {LLM_MODEL_NAME}")
+llm_model_name = get_llm_config()
+st.sidebar.info(f"**Model:** {llm_model_name}")
 st.sidebar.info(f"**Temperature:** {temperature}")
 st.sidebar.info(f"**Top-p:** {top_p}")
 st.sidebar.info(f"**Top-k:** {top_k}")
@@ -77,7 +78,7 @@ def check_credentials():
 credentials_ok, credentials_message = check_credentials()
 
 if not credentials_ok:
-    st.error(f"⚠️ {credentials_message}")
+    st.error(f"{credentials_message}")
     st.info("""
     **To run this app:**
     1. Deploy to Streamlit Cloud
@@ -167,10 +168,10 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                                 }
                             )
                 else:
-                    st.error("❌ Agent failed to complete")
+                    st.error("Agent failed to complete")
                     
             except Exception as e:
-                st.error(f"❌ Error running agent: {str(e)}")
+                st.error(f"Error running agent: {str(e)}")
                 st.exception(e)
     else:
         st.warning("Please enter a question.") 

@@ -8,7 +8,7 @@ import json
 from google.oauth2 import service_account
 from multi_hop_agent.utils.helpers import extract_after_think
 from langchain_google_vertexai import ChatVertexAI
-from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION, GOOGLE_CREDENTIALS_JSON
+from multi_hop_agent.config.settings import get_google_credentials, get_llm_config
 
 def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
     """
@@ -26,23 +26,31 @@ def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
         Exception: If LLM initialization fails
     """
     try:
+        # Get credentials when needed
+        api_key, credentials_json, project_id, location = get_google_credentials()
+        llm_model_name = get_llm_config()
+        
         # Check if required Google Cloud settings are available
-        if not GOOGLE_PROJECT_ID:
+        if not project_id:
             raise Exception("GOOGLE_PROJECT_ID not found in Streamlit secrets")
         
-        if not GOOGLE_CREDENTIALS_JSON:
+        if not credentials_json:
             raise Exception("GOOGLE_CREDENTIALS_JSON not found in Streamlit secrets")
         
-        # 🔑 CRITICAL: Create service account credentials object
-        credentials_info = json.loads(GOOGLE_CREDENTIALS_JSON)
+        # Create service account credentials object
+        try:
+            credentials_info = json.loads(credentials_json)
+        except json.JSONDecodeError as e:
+            raise Exception(f"Invalid JSON in service_account_json: {e}")
+        
         credentials = service_account.Credentials.from_service_account_info(credentials_info)
         
-        # Using Google Vertex AI with EXPLICIT credentials
+        # Using Google Vertex AI with explicit credentials
         llm = ChatVertexAI(
-            model_name=LLM_MODEL_NAME,
-            project=GOOGLE_PROJECT_ID,
-            location=GOOGLE_LOCATION or "us-central1",
-            credentials=credentials,  # 🔑 THIS IS THE KEY FIX!
+            model_name=llm_model_name,
+            project=project_id,
+            location=location or "us-central1",
+            credentials=credentials,  # This is the key fix!
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -67,9 +75,6 @@ def chat(llm, system: str, user: str, parser=None) -> str:
     Returns:
         Parsed or raw LLM response
     """
-    print(f"\n--- Calling LLM ---")
-    print(f"System: {system}")
-    print(f"User: {user}")
     try:
         # Insert format instructions if a parser is provided
         if parser:
@@ -88,14 +93,12 @@ def chat(llm, system: str, user: str, parser=None) -> str:
         content = response.content
         
         cleaned_content = extract_after_think(content)
-        print(f"LLM Raw Response: {cleaned_content}")
         
         # Parse if parser provided
         if parser:
             try:
                 # First: Try parser directly on cleaned content (most robust)
                 parsed_output = parser.parse(cleaned_content)
-                print(f"Parser succeeded on cleaned content: {parsed_output}")
                 return parsed_output
             except Exception as e:
                 print(f"Parser failed on cleaned content: {e}. Returning raw content.")
