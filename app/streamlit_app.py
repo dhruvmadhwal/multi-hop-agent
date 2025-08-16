@@ -3,94 +3,20 @@ import asyncio
 import nest_asyncio
 import sys
 import os
+import traceback
+import json
+from google.oauth2 import service_account
 
 # Add parent directory to Python path to find multi_hop_agent package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from multi_hop_agent.runner import run_agent_on_prompt
-from multi_hop_agent.config.settings import LLM_MODEL_NAME
+from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION, GOOGLE_CREDENTIALS_JSON
+from multi_hop_agent.utils.helpers import extract_after_think
+from langchain_google_vertexai import ChatVertexAI
 
 # Apply nest_asyncio for Streamlit compatibility
 nest_asyncio.apply()
-
-
-
-
-
-
-
-
-
-
-
-def increment_global_counter():
-    """Increment the global counter"""
-    counter_file = "global_request_counter.txt"
-    current_time = time.time()
-    
-    try:
-        with open(counter_file, 'r') as f:
-            data = f.read().strip().split(',')
-            if len(data) == 2:
-                count, timestamp = int(data[0]), float(data[1])
-                
-                # Check if we're in a new hour window
-                if current_time - timestamp >= RATE_LIMIT_WINDOW:
-                    # Reset for new hour
-                    new_count = 1
-                else:
-                    # Still in same hour
-                    new_count = count + 1
-                
-                # Write updated counter
-                with open(counter_file, 'w') as f:
-                    f.write(f"{new_count},{timestamp}")
-                return new_count
-            else:
-                # Invalid file format, reset
-                with open(counter_file, 'w') as f:
-                    f.write(f"1,{current_time}")
-                return 1
-    except Exception:
-        # Error, create new file
-        with open(counter_file, 'w') as f:
-            f.write(f"1,{current_time}")
-        return 1
-
-def check_global_rate_limit_file_based():
-    """Check global rate limit using file-based counter"""
-    current_count = get_file_based_global_counter()
-    
-    if current_count >= MAX_REQUESTS_PER_HOUR:
-        return False, current_count
-    
-    # Increment counter
-    new_count = increment_global_counter()
-    return True, new_count
-
-def get_global_rate_limit_status_file_based():
-    """Get global rate limit status using file-based counter"""
-    current_count = get_file_based_global_counter()
-    current_time = time.time()
-    
-    # Read timestamp from file
-    try:
-        with open("global_request_counter.txt", 'r') as f:
-            data = f.read().strip().split(',')
-            if len(data) == 2:
-                timestamp = float(data[1])
-                time_elapsed = current_time - timestamp
-                time_remaining = max(0, RATE_LIMIT_WINDOW - time_elapsed)
-            else:
-                time_remaining = 0
-    except:
-        time_remaining = 0
-    
-    return {
-        'requests_used': current_count,
-        'requests_remaining': MAX_REQUESTS_PER_HOUR - current_count,
-        'time_remaining': time_remaining
-    }
 
 # Page configuration
 st.set_page_config(
