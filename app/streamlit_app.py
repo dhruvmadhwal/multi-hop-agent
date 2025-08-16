@@ -3,17 +3,12 @@ import asyncio
 import nest_asyncio
 import sys
 import os
-import traceback
-import json
-from google.oauth2 import service_account
 
 # Add parent directory to Python path to find multi_hop_agent package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from multi_hop_agent.runner import run_agent_on_prompt
-from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION, GOOGLE_CREDENTIALS_JSON
-from multi_hop_agent.utils.helpers import extract_after_think
-from langchain_google_vertexai import ChatVertexAI
+from multi_hop_agent.config.settings import LLM_MODEL_NAME
 
 # Apply nest_asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -64,30 +59,25 @@ st.sidebar.info(f"**Temperature:** {temperature}")
 st.sidebar.info(f"**Top-p:** {top_p}")
 st.sidebar.info(f"**Top-k:** {top_k}")
 
-
-
 # Check if credentials are configured via Streamlit secrets
-def get_google_api_key():
-    """Get Google API key from Streamlit secrets"""
+def check_credentials():
+    """Check if all required Google Cloud credentials are available"""
     try:
-        return st.secrets.get("google", {}).get("api_key")
+        secrets = st.secrets.get("google", {})
+        required_fields = ["api_key", "service_account_json", "project_id", "location"]
+        missing_fields = [field for field in required_fields if not secrets.get(field)]
+        
+        if missing_fields:
+            return False, f"Missing: {', '.join(missing_fields)}"
+        return True, "All credentials available"
     except:
-        return None
-
-def get_google_credentials_path():
-    """Get Google credentials path from Streamlit secrets"""
-    try:
-        # Since we have the full JSON in secrets, we'll use a temporary file path
-        return st.secrets.get("google", {}).get("service_account_json")
-    except:
-        return None
+        return False, "Could not access Streamlit secrets"
 
 # Check credentials
-google_api_key = get_google_api_key()
-google_credentials_json = get_google_credentials_path()
+credentials_ok, credentials_message = check_credentials()
 
-if not google_api_key:
-    st.error("⚠️ GOOGLE_API_KEY not found in Streamlit secrets!")
+if not credentials_ok:
+    st.error(f"⚠️ {credentials_message}")
     st.info("""
     **To run this app:**
     1. Deploy to Streamlit Cloud
@@ -98,6 +88,8 @@ if not google_api_key:
     [google]
     api_key = "your_actual_api_key_here"
     service_account_json = "your_full_json_content_here"
+    project_id = "your_project_id_here"
+    location = "us-central1"
     ```
     """)
     st.stop()
@@ -105,9 +97,6 @@ if not google_api_key:
 # Main app
 st.title("🧠 Multi-Hop Reasoning Agent")
 st.markdown("This agent uses a multi-step reasoning pipeline to answer complex questions.")
-
-# Single question input
-st.header("❓ Ask a Question")
 
 # Example questions dropdown
 example_questions = {
@@ -132,7 +121,6 @@ user_question = st.text_area(
 
 if st.button("🚀 Run Agent", type="primary", use_container_width=True):
     if user_question.strip():
-
         with st.spinner("Running multi-hop reasoning (may take a minute)..."):
             try:
                 # Run the agent with current temperature, top_p, and top_k settings

@@ -4,9 +4,11 @@ LLM interaction utilities for the Multi-Hop Agent system.
 This module provides functions to interact with the LLM.
 """
 import traceback
+import json
+from google.oauth2 import service_account
 from multi_hop_agent.utils.helpers import extract_after_think
 from langchain_google_vertexai import ChatVertexAI
-from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION
+from multi_hop_agent.config.settings import LLM_MODEL_NAME, GOOGLE_PROJECT_ID, GOOGLE_LOCATION, GOOGLE_CREDENTIALS_JSON
 
 def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
     """
@@ -28,11 +30,19 @@ def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
         if not GOOGLE_PROJECT_ID:
             raise Exception("GOOGLE_PROJECT_ID not found in Streamlit secrets")
         
-        # Using Google Vertex AI
+        if not GOOGLE_CREDENTIALS_JSON:
+            raise Exception("GOOGLE_CREDENTIALS_JSON not found in Streamlit secrets")
+        
+        # 🔑 CRITICAL: Create service account credentials object
+        credentials_info = json.loads(GOOGLE_CREDENTIALS_JSON)
+        credentials = service_account.Credentials.from_service_account_info(credentials_info)
+        
+        # Using Google Vertex AI with EXPLICIT credentials
         llm = ChatVertexAI(
             model_name=LLM_MODEL_NAME,
             project=GOOGLE_PROJECT_ID,
-            location=GOOGLE_LOCATION,  # Default location if not specified
+            location=GOOGLE_LOCATION or "us-central1",
+            credentials=credentials,  # 🔑 THIS IS THE KEY FIX!
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -41,7 +51,7 @@ def initialize_llm(temperature=0.1, top_p=0.95, top_k=40):
         return llm
     except Exception as e:
         print(f"Error initializing ChatVertexAI: {e}")
-        print("Please ensure you have provided project_id and location in Streamlit secrets")
+        print("Please ensure you have provided project_id, location, and service_account_json in Streamlit secrets")
         raise
 
 def chat(llm, system: str, user: str, parser=None) -> str:
