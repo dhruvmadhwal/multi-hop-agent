@@ -4,7 +4,6 @@ import nest_asyncio
 import sys
 import os
 import time
-from streamlit_mermaid import st_mermaid
 
 # Add parent directory to Python path to find multi_hop_agent package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
