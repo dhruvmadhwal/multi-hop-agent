@@ -165,35 +165,6 @@ from multi_hop_agent.runner import batch_run
 batch_run()
 ```
 
-## Example Questions
-
-The agent excels at multi-hop reasoning questions like:
-
-### **Sports Analytics (FanoutQA)**
-> "What is the batting hand of each of the first five picks in the 1998 MLB draft?"
-
-**Reasoning Steps:**
-1. Find the first five picks in the 1998 MLB draft
-2. For each player, lookup their batting hand (left/right/switch)
-3. Compile the complete list
-
-### **Literature Analysis (Frames)**
-> "I am the narrator character in the final novel written by the recipient of the 1963 Hugo Award for Best Novel. Who am I?"
-
-**Reasoning Steps:**
-1. Identify the 1963 Hugo Award winner for Best Novel
-2. Find the final novel written by that author
-3. Determine the narrator character in that novel
-
-### **Geographic Research (Musique)**
-> "What is the symbol of the Saints from the headquarters location of Ten High's manufacturer called?"
-
-**Reasoning Steps:**
-1. Identify Ten High's manufacturer
-2. Find the headquarters location of that manufacturer  
-3. Determine what the Saints are called in that location
-4. Find the symbol associated with those Saints
-
 ## Technical Architecture
 
 ### State Management
@@ -260,17 +231,33 @@ The agent has been tested on:
 ### Project Structure
 
 ```
-multi_hop_agent/
-├── agents/           # Specialized agent implementations
-├── config/           # Configuration and settings
-├── graph/            # Agent graph construction
-├── models/           # Pydantic schemas and state definitions
-├── prompts/          # System prompts for each agent
-└── utils/            # Helper functions and LLM utilities
-
-app/
-├── streamlit_app.py  # Main Streamlit interface
-└── requirements.txt  # Dependencies
+Multi-Hop-Agent/
+├── multi_hop_agent/
+│   ├── agents/           # Specialized agent implementations
+│   │   ├── orchestrator.py
+│   │   ├── decomposer.py
+│   │   ├── fact_recall.py
+│   │   ├── coder.py
+│   │   ├── final_answer.py
+│   │   └── progress_assessment.py
+│   ├── config/           # Configuration and settings
+│   │   └── settings.py
+│   ├── graph/            # Agent graph construction
+│   │   └── agent_graph.py
+│   ├── models/           # Pydantic schemas and state definitions
+│   │   └── schema.py
+│   ├── prompts/          # System prompts for each agent
+│   │   └── system_prompts.py
+│   ├── utils/            # Helper functions and LLM utilities
+│   │   ├── llm.py
+│   │   └── helpers.py
+│   └── runner.py         # Main execution runner
+├── app/
+│   ├── streamlit_app.py  # Streamlit web interface
+│   └── requirements.txt  # Dependencies
+├── assets/
+│   └── architecture-diagram.png
+└── README.md
 ```
 
 ### Adding New Agents
