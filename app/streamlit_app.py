@@ -444,7 +444,7 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                     final_qa_pairs = extract_questions_and_answers_from_agent(result, result.get('log', []))
                     
                     # Show question decomposition in a collapsible element
-                    with st.expander("🔍 Question Decomposition", expanded=False):
+                    with st.expander("🔍 Question Decomposition", expanded=True):
                         st.markdown("""
                         <h2 style="font-size: 2em; margin-bottom: 15px;">
                             🤔 Decomposed Questions & Answers
