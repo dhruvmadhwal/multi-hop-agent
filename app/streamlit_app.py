@@ -320,14 +320,12 @@ if st.button("Run Agent", type="primary", use_container_width=True):
         # Check monthly limit before proceeding
         can_proceed, limit_message = check_limit()
         if not can_proceed:
-            st.error("**API Exhausted**")
-            st.error(limit_message)
-            st.info("Your monthly limit will reset at the beginning of next month.")
+            st.error(f"**API Exhausted:** {limit_message}")
             st.stop()
         
         # Show remaining requests
         stats = get_usage_stats()
-        st.info(f"Using 1 of {stats['remaining']} remaining requests this month...")
+        st.info(f"{stats['remaining']} remaining requests")
         # Initialize session state for tracking execution
         if 'execution_data' not in st.session_state:
             st.session_state.execution_data = []

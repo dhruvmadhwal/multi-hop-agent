@@ -1,5 +1,5 @@
 """
-Simple monthly request limiter using PostgreSQL (Supabase).
+Simple monthly request limiter using Supabase.
 
 Tracks the number of questions asked per month and enforces a limit.
 """
@@ -7,47 +7,30 @@ import os
 from datetime import datetime
 from typing import Tuple, Dict, Any
 import streamlit as st
-import psycopg2
-from psycopg2.extras import RealDictCursor
 
 
-def get_db_config():
+def get_supabase_client():
     """
-    Get database configuration from Streamlit secrets.
+    Get Supabase client from credentials.
     
     Returns:
-        Dict with database connection parameters
+        Supabase client instance and usage limit
     """
     try:
-        db_config = {
-            'host': st.secrets.get("database", {}).get("host"),
-            'port': st.secrets.get("database", {}).get("port", "5432"),
-            'database': st.secrets.get("database", {}).get("name", "postgres"),
-            'user': st.secrets.get("database", {}).get("user"),
-            'password': st.secrets.get("database", {}).get("password"),
-            'sslmode': st.secrets.get("database", {}).get("sslmode", "require")
-        }
+        from supabase import create_client, Client
         
-        # Get usage limit from secrets or use default
-        limit = st.secrets.get("database", {}).get("usage_limit", 50)
+        # Get credentials from Streamlit secrets
+        supabase_url = st.secrets.get("supabase", {}).get("url")
+        supabase_key = st.secrets.get("supabase", {}).get("key")
+        usage_limit = st.secrets.get("supabase", {}).get("usage_limit", 50)
         
-        if not db_config['host'] or not db_config['user'] or not db_config['password']:
-            raise Exception("Database credentials not found in secrets")
+        if not supabase_url or not supabase_key:
+            raise Exception("Supabase credentials (url, key) not found in secrets")
         
-        return db_config, limit
+        client = create_client(supabase_url, supabase_key)
+        return client, usage_limit
     except Exception as e:
-        raise Exception(f"Failed to get database config: {e}")
-
-
-def get_db_connection():
-    """
-    Get a database connection.
-    
-    Returns:
-        psycopg2 connection object
-    """
-    db_config, _ = get_db_config()
-    return psycopg2.connect(**db_config)
+        raise Exception(f"Failed to initialize Supabase client: {e}")
 
 
 def get_current_bucket() -> str:
@@ -68,35 +51,28 @@ def get_request_count() -> Tuple[int, int, int]:
     Returns:
         Tuple of (current_count, limit, remaining)
     """
-    conn = None
     try:
-        _, limit = get_db_config()
+        supabase, limit = get_supabase_client()
         bucket = get_current_bucket()
         
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
         # Query the current bucket
-        cursor.execute(
-            "SELECT count FROM request_counter WHERE bucket = %s",
-            (bucket,)
-        )
-        result = cursor.fetchone()
+        response = supabase.table('request_counter').select('count').eq('bucket', bucket).execute()
         
-        current_count = result['count'] if result else 0
+        if response.data and len(response.data) > 0:
+            current_count = response.data[0]['count']
+        else:
+            current_count = 0
+        
         remaining = max(0, limit - current_count)
-        
-        cursor.close()
-        conn.close()
-        
         return current_count, limit, remaining
         
     except Exception as e:
         print(f"Error getting request count: {e}")
-        if conn:
-            conn.close()
         # Return conservative defaults on error
-        _, limit = get_db_config()
+        try:
+            _, limit = get_supabase_client()
+        except:
+            limit = 50
         return 0, limit, limit
 
 
@@ -107,9 +83,8 @@ def increment_request() -> Tuple[bool, int, str]:
     Returns:
         Tuple of (success: bool, current_count: int, message: str)
     """
-    conn = None
     try:
-        _, limit = get_db_config()
+        supabase, limit = get_supabase_client()
         bucket = get_current_bucket()
         
         # Get current count
@@ -119,34 +94,30 @@ def increment_request() -> Tuple[bool, int, str]:
         if current_count >= limit:
             return False, current_count, f"API Exhausted: Monthly limit of {limit} requests reached"
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # Check if bucket exists
+        response = supabase.table('request_counter').select('count').eq('bucket', bucket).execute()
         
-        # Use UPSERT to increment or insert
-        cursor.execute("""
-            INSERT INTO request_counter (bucket, count, updated_at)
-            VALUES (%s, 1, NOW())
-            ON CONFLICT (bucket)
-            DO UPDATE SET 
-                count = request_counter.count + 1,
-                updated_at = NOW()
-            RETURNING count
-        """, (bucket,))
-        
-        new_count = cursor.fetchone()[0]
-        conn.commit()
-        
-        cursor.close()
-        conn.close()
+        if response.data and len(response.data) > 0:
+            # Update existing row
+            new_count = response.data[0]['count'] + 1
+            supabase.table('request_counter').update({
+                'count': new_count,
+                'updated_at': datetime.now().isoformat()
+            }).eq('bucket', bucket).execute()
+        else:
+            # Insert new row
+            new_count = 1
+            supabase.table('request_counter').insert({
+                'bucket': bucket,
+                'count': new_count,
+                'updated_at': datetime.now().isoformat()
+            }).execute()
         
         remaining = limit - new_count
         return True, new_count, f"Request logged: {new_count}/{limit} ({remaining} remaining this month)"
         
     except Exception as e:
         print(f"Error incrementing request count: {e}")
-        if conn:
-            conn.rollback()
-            conn.close()
         return False, 0, f"Error: Could not update request counter - {e}"
 
 
@@ -161,9 +132,9 @@ def check_limit() -> Tuple[bool, str]:
         current_count, limit, remaining = get_request_count()
         
         if current_count >= limit:
-            return False, f"API Exhausted: You have used {current_count}/{limit} requests this month. Limit resets next month."
+            return False, "Limit resets next month."
         
-        return True, f"{remaining} requests remaining this month"
+        return True, f"{remaining} remaining requests"
         
     except Exception as e:
         print(f"Error checking limit: {e}")
@@ -196,7 +167,7 @@ def get_usage_stats() -> Dict[str, Any]:
     except Exception as e:
         print(f"Error getting usage stats: {e}")
         try:
-            _, limit = get_db_config()
+            _, limit = get_supabase_client()
         except:
             limit = 50  # Fallback default
         return {
