@@ -112,20 +112,7 @@ Set up environment variables or use a `.env` file:
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/service-account.json"
 export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1"
-```
-
-#### For Streamlit Cloud Deployment
-Add secrets in Streamlit Cloud settings:
-
-```toml
-[google]
-service_account_json = "your_full_json_content_here"
-project_id = "your_project_id_here"
-location = "us-central1"
-
-[llm]
-model = "gemini-2.5-flash"
+export GOOGLE_CLOUD_LOCATION="region"
 ```
 
 ## Usage
@@ -145,24 +132,6 @@ result = run_agent_on_prompt(
 
 print(result['reply'])  # Final answer
 print(result['answered_questions'])  # Sub-questions and answers
-```
-
-### Streamlit Web Interface
-
-```bash
-cd app
-streamlit run streamlit_app.py
-```
-
-Then open `http://localhost:8501` in your browser.
-
-### Batch Processing
-
-```python
-from multi_hop_agent.runner import batch_run
-
-# Process multiple examples
-batch_run()
 ```
 
 ## Technical Architecture

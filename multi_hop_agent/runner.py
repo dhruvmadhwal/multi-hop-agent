@@ -16,6 +16,7 @@ from multi_hop_agent.utils.llm import initialize_llm
 from multi_hop_agent.utils.helpers import save_answers
 from multi_hop_agent.graph.agent_graph import build_agent_graph
 from multi_hop_agent.config.settings import DATASET_FILE, ANSWERS_FILE, LOGS_DIR
+from multi_hop_agent.utils.request_limiter import increment_request, get_usage_stats
 
 def create_initial_state(task: str) -> AgentState:
     """
@@ -94,7 +95,24 @@ def run_agent_on_prompt(task: str, temperature: float = 0.1, top_p: float = 0.95
         
     Returns:
         Final agent state
+        
+    Raises:
+        Exception: If monthly API request limit is exhausted
     """
+    # Check and increment request counter
+    success, count, message = increment_request()
+    
+    if not success:
+        # Monthly limit reached
+        stats = get_usage_stats()
+        error_msg = "API Exhausted: Monthly limit of requests reached. Resets next month."
+        print(f"\n{'='*60}")
+        print(f"ERROR: {error_msg}")
+        print(f"{'='*60}\n")
+        raise Exception(error_msg)
+    
+    print(f"\n{message}")
+    
     # Initialize LLM with specified parameters
     llm = initialize_llm(temperature=temperature, top_p=top_p, top_k=top_k)
     

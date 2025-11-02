@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from multi_hop_agent.runner import run_agent_on_prompt
 from multi_hop_agent.config.settings import get_llm_config
+from multi_hop_agent.utils.request_limiter import get_usage_stats, check_limit
 
 # Apply nest_asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -17,7 +18,6 @@ nest_asyncio.apply()
 # Page configuration
 st.set_page_config(
     page_title="Multi-Hop Reasoning Agent",
-    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -61,10 +61,32 @@ st.sidebar.info(f"**Temperature:** {temperature}")
 st.sidebar.info(f"**Top-p:** {top_p}")
 st.sidebar.info(f"**Top-k:** {top_k}")
 
+# Display monthly usage stats
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Monthly Usage")
+
+try:
+    stats = get_usage_stats()
+    
+    if stats['status'] == 'exhausted':
+        st.sidebar.error("**Monthly Limit Reached**")
+        st.sidebar.error(f"{stats['current_count']}/{stats['limit']} requests used")
+        st.sidebar.caption(f"Resets: {stats['month']}")
+    elif stats['status'] == 'active':
+        st.sidebar.success(f"**{stats['remaining']} requests left**")
+        st.sidebar.progress(stats['percentage_used'] / 100)
+        st.sidebar.caption(f"{stats['current_count']}/{stats['limit']} used this month ({stats['percentage_used']}%)")
+    else:
+        st.sidebar.warning("Could not load usage stats")
+        if 'error' in stats:
+            st.sidebar.caption(f"Error: {stats['error']}")
+except Exception as e:
+    st.sidebar.error(f"Error loading usage: {e}")
+
 # Add GitHub link in sidebar
 st.sidebar.markdown("---")
 st.sidebar.markdown("### About")
-st.sidebar.markdown("[📚 Learn more about this agent](https://github.com/dhruvmadhwal/multi-hop-agent)")
+st.sidebar.markdown("[Learn more about this agent](https://github.com/dhruvmadhwal/multi-hop-agent)")
 
 # Check if credentials are configured via Streamlit secrets
 def check_credentials():
@@ -101,19 +123,19 @@ if not credentials_ok:
     st.stop()
 
 # Main app
-st.title("🧠 Multi-Hop Reasoning Agent")
+st.title("Multi-Hop Reasoning Agent")
 st.markdown("This agent uses a multi-step reasoning pipeline to answer complex questions. Learn more about the agent [here](https://github.com/dhruvmadhwal/multi-hop-agent).")
 
 # Example questions dropdown
 example_questions = {
     "Select an example question...": "",
-    "🏟️ What is the batting hand of each of the first five picks in the 1998 MLB draft? (FanoutQA)": "What is the batting hand of each of the first five picks in the 1998 MLB draft?",
-    "📚 I am the narrator character in the final novel written by the recipient of the 1963 Hugo Award for Best Novel. Who am I? (Frames)": "I am the narrator character in the final novel written by the recipient of the 1963 Hugo Award for Best Novel. Who am I?",
-    "🏭 What is the symbol of the Saints from the headquarters location of Ten High's manufacturer called? (Musique)": "What is the symbol of the Saints from the headquarters location of Ten High's manufacturer called?"
+    "What is the batting hand of each of the first five picks in the 1998 MLB draft? (FanoutQA)": "What is the batting hand of each of the first five picks in the 1998 MLB draft?",
+    "I am the narrator character in the final novel written by the recipient of the 1963 Hugo Award for Best Novel. Who am I? (Frames)": "I am the narrator character in the final novel written by the recipient of the 1963 Hugo Award for Best Novel. Who am I?",
+    "What is the symbol of the Saints from the headquarters location of Ten High's manufacturer called? (Musique)": "What is the symbol of the Saints from the headquarters location of Ten High's manufacturer called?"
 }
 
 selected_example = st.selectbox(
-    "💡 Try an example question:",
+    "Try an example question:",
     options=list(example_questions.keys()),
     help="Select an example to see what kind of complex questions this agent can handle"
 )
@@ -288,13 +310,24 @@ def extract_questions_and_answers_from_agent(agent_state, log_entries):
     return qa_pairs
 
 # Run Agent button right after the question input
-if st.button("🚀 Run Agent", type="primary", use_container_width=True):
+if st.button("Run Agent", type="primary", use_container_width=True):
     # Create placeholders for real-time updates
     execution_placeholder = st.empty()
     questions_placeholder = st.empty()
     answer_placeholder = st.empty()
 
     if user_question.strip():
+        # Check monthly limit before proceeding
+        can_proceed, limit_message = check_limit()
+        if not can_proceed:
+            st.error("**API Exhausted**")
+            st.error(limit_message)
+            st.info("Your monthly limit will reset at the beginning of next month.")
+            st.stop()
+        
+        # Show remaining requests
+        stats = get_usage_stats()
+        st.info(f"Using 1 of {stats['remaining']} remaining requests this month...")
         # Initialize session state for tracking execution
         if 'execution_data' not in st.session_state:
             st.session_state.execution_data = []
@@ -308,12 +341,12 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
             st.session_state.qa_pairs = []
         
         # Setup the execution table
-        st.subheader("🔄 Execution Flow")
+        st.subheader("Execution Flow")
         execution_table = st.empty()
         
         # Setup the final answer placeholder
         status_text = st.empty()
-        status_text.info("🚀 Agent is running...")
+        status_text.info("Agent is running...")
         
         # Run the agent with real-time updates
         with st.spinner("Running multi-hop reasoning..."):
@@ -371,17 +404,17 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                                     
                                     # Show progress indicators for different nodes
                                     if node_update["next_node"] == "Decomposer":
-                                        status_text.info("🔍 Decomposer is breaking down the question into sub-questions...")
+                                        status_text.info("Decomposer is breaking down the question into sub-questions...")
                                     elif node_update["next_node"] == "FactRecall":
-                                        status_text.info("📚 FactRecall is retrieving relevant information...")
+                                        status_text.info("FactRecall is retrieving relevant information...")
                                     elif node_update["next_node"] == "Coder":
-                                        status_text.info("💻 Coder is executing code to find answers...")
+                                        status_text.info("Coder is executing code to find answers...")
                                     elif node_update["next_node"] == "ProgressAssessment":
-                                        status_text.info("🔄 ProgressAssessment is analyzing the current state and determining next steps...")
+                                        status_text.info("ProgressAssessment is analyzing the current state and determining next steps...")
                                     elif node_update["next_node"] == "FinalAnswer":
-                                        status_text.success("🎯 FinalAnswer is generating the final response...")
+                                        status_text.success("FinalAnswer is generating the final response...")
                                     elif node_update["next_node"] == "END":
-                                        status_text.success("✅ Multi-hop reasoning completed!")
+                                        status_text.success("Multi-hop reasoning completed!")
                                 
                                 # Update log entries
                                 if 'log' in node_update:
@@ -436,7 +469,7 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                 
                 if result:
                     # Show final answer from the correct field
-                    status_text.success("🎯 Final answer:")
+                    status_text.success("Final answer:")
                     final_answer = result.get("reply", result.get("prompt", "No answer generated"))
                     st.write(final_answer)
                     
@@ -444,10 +477,10 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                     final_qa_pairs = extract_questions_and_answers_from_agent(result, result.get('log', []))
                     
                     # Show question decomposition in a collapsible element
-                    with st.expander("🔍 Question Decomposition", expanded=True):
+                    with st.expander("Question Decomposition", expanded=True):
                         st.markdown("""
                         <h2 style="font-size: 2em; margin-bottom: 15px;">
-                            🤔 Decomposed Questions & Answers
+                            Decomposed Questions & Answers
                         </h2>
                         """, unsafe_allow_html=True)
                         
@@ -465,7 +498,7 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                             """)
                             
                             # Show debug info about the agent state
-                            st.subheader("🔍 Agent State Debug Info")
+                            st.subheader("Agent State Debug Info")
                             st.json({
                                 "has_answered_questions": bool(result.get('answered_questions')),
                                 "answered_questions_count": len(result.get('answered_questions', {})),
@@ -475,7 +508,7 @@ if st.button("🚀 Run Agent", type="primary", use_container_width=True):
                             })
                     
                 else:
-                    st.error("❌ Agent failed to complete")
+                    st.error("Agent failed to complete")
                     
             except Exception as e:
                 st.error(f"Error running agent: {str(e)}")
