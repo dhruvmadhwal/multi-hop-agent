@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from multi_hop_agent.runner import run_agent_on_prompt
 from multi_hop_agent.config.settings import get_llm_config
-from multi_hop_agent.utils.request_limiter import get_usage_stats, check_limit
+from multi_hop_agent.utils.request_limiter import get_usage_stats, check_limit, increment_request
 
 # Apply nest_asyncio for Streamlit compatibility
 nest_asyncio.apply()
@@ -357,6 +357,12 @@ if st.button("Run Agent", type="primary", use_container_width=True):
                     from multi_hop_agent.utils.llm import initialize_llm
                     from multi_hop_agent.graph.agent_graph import build_agent_graph
                     from multi_hop_agent.models.schema import AgentState
+                    
+                    # Increment the request counter (actual DB write happens here)
+                    success, count, message = increment_request()
+                    if not success:
+                        raise Exception(f"API Exhausted: {message}")
+                    print(f"Request logged: {message}")
                     
                     # Initialize LLM
                     llm = initialize_llm(temperature=temperature, top_p=top_p, top_k=top_k)
